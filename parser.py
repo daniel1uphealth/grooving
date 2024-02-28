@@ -120,13 +120,10 @@ def p_complex_term(p):
 def p_simple_term(p):
     '''simple_term : simple_term DOT terminal_term
                    | LPAREN simple_term RPAREN
-                   | terminal_term
-                   | string_term'''
+                   | terminal_term'''
 #    print("SIMPLE_TERM: %s" % to_string(p))
     if len(p) > 3:
         p[0] = p[1] + p[2] + p[3]
-    elif len(p) > 2:
-        p[0] = p[1] + ' ' + p[2]
     else:
         p[0] = p[1]
 
@@ -136,6 +133,7 @@ def p_terminal_term(p):
                      | NEW func
                      | ID
                      | NUM
+                     | string_term
                      | empty'''
 #    print("TERMINAL_TERM: %s" % to_string(p))
     if len(p) > 2:
