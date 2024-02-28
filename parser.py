@@ -110,12 +110,7 @@ def p_complex_term(p):
     '''complex_term : simple_term
                     | ternary'''
 #    print("COMPLEX_TERM: %s" % to_string(p))
-    if len(p) > 3:
-        p[0] = p[1] + p[2] + p[3]
-    elif len(p) > 2:
-        p[0] = p[1] + ' ' + p[2]
-    else:
-        p[0] = p[1]
+    p[0] = p[1]
 
 def p_simple_term(p):
     '''simple_term : simple_term DOT terminal_term
