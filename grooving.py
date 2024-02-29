@@ -2,6 +2,36 @@ import sys
 import ply.lex as lex
 import ply.yacc as yacc
 
+#
+# grooving.py is a grammar parser that reads Groovy snippets and produces something
+# that resembles English.
+#
+# Usage:
+#   python3 grooving.py [filename]
+#
+# If a filename is given, grooving.py will read from that file. If no filename is
+# given, grooving.py will read from stdin. The translations for successfully
+# parsed rows from the source data will be output to stdout. Rows that cannot be
+# parsed will be written to stderr (prepended with '!!!') with a short explanation.
+# In both cases the output will include an additional column added to the start of
+# each row that is the row number from the source file.
+#
+# grooving.py requires the PLY library. Before you can use grooving.py, you'll have
+# to pip install ply.
+#
+# There are several known cases that grooving.py cannot parse:
+#
+# * Inline function definitions - probably could be parsed, but a function definition
+#   is too hard to translate usefully into English.
+# * Regular expressions - really hard to parse, and impossible to translate usefully
+#   into English
+# * Use of '?' in a variable name, e.g. "_.CIP0078?.trim()" - it would be easy to parse,
+#   but I'm not convinced it's valid syntax and don't know how to translate it into
+#   English.
+# * Use of '|' for boolean comparison - I'm pretty sure that's a syntax error and should
+#   instead be '||'. If we want to support it, it's easy to parse.
+#
+
 reserved = {
     'new': 'NEW',
     'def': 'DEF'
