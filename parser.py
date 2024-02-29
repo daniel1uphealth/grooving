@@ -102,8 +102,7 @@ def p_value(p):
 
 
 def p_term(p):
-    '''term : term PLUS complex_term
-            | LPAREN term RPAREN
+    '''term : LPAREN term RPAREN
             | complex_term'''
     #    print("TERM: %s" % to_string(p))
     p[0] = to_string(p)
@@ -132,6 +131,7 @@ def p_complex_term(p):
 
 def p_simple_term(p):
     '''simple_term : simple_term DOT terminal_term
+                   | simple_term PLUS terminal_term
                    | LPAREN simple_term RPAREN
                    | terminal_term'''
     #    print("SIMPLE_TERM: %s" % to_string(p))
@@ -180,33 +180,33 @@ def p_params(p):
 
 def p_ternary_term(p):
     '''ternary_term : ternary
-               | LPAREN ternary RPAREN'''
+               | LPAREN ternary_term RPAREN
+               | ternary_term PLUS term'''
     #    print("TERNARY: %s" % to_string(p))
     p[0] = to_string(p)
 
 
 def p_simple_ternary(p):
-    '''ternary : condition QUERY simple_term COLON simple_term'''
+    '''ternary : compound_bool QUERY simple_term COLON simple_term'''
     #    print("SIMPLE_TERNARY: %s" % to_string(p))
     p[0] = "if " + p[1] + " display " + p[3] + "\notherwise display " + p[5]
 
 
 def p_complex_ternary1(p):
-    '''ternary : condition QUERY ternary_term COLON simple_term'''
+    '''ternary : compound_bool QUERY ternary_term COLON simple_term'''
     #    print("COMPLEX_TERNARY1: %s" % to_string(p))
     sub = '\t' + '\n\t'.join(p[3].split('\n'))
     p[0] = "if " + p[1] + "\n" + sub + "\notherwise display " + p[5]
 
 
 def p_complex_ternary2(p):
-    '''ternary : condition QUERY simple_term COLON ternary_term'''
+    '''ternary : compound_bool QUERY simple_term COLON ternary_term'''
     #    print("COMPLEX_TERNARY2: %s" % to_string(p))
     p[0] = "if " + p[1] + " display " + p[3] + "\notherwise " + p[5]
 
 
-def p_condition(p):
-    '''condition : compound_bool
-                 | LPAREN compound_bool RPAREN'''
+def p_compound_bool_parens(p):
+    '''compound_bool : LPAREN compound_bool RPAREN'''
     #    print("CONDITION: %s" % to_string(p))
     p[0] = to_string(p)
 
@@ -222,7 +222,8 @@ def p_compound_bool(p):
 
 
 def p_bool(p):
-    '''bool : term COMP term
+    '''bool : LPAREN bool RPAREN
+            | term COMP term
             | term EQ term
             | term'''
     #    print("BOOL: %s" % to_string(p))
