@@ -18,8 +18,9 @@ def t_ID(t):
 def t_error(t):
     sys.stderr.write("Illegal character '%s'\n" % t.value[0])
 
-
+# Match double-quated strings, including '""""', but not ',"","",'
 t_DSTR = r'""([^,"]||[^"]{2,})""'
+# Single quoted strings tend to be simpler
 t_SSTR = r'\'[^\']*\''
 t_COMP = r'[<>]=?'
 t_EQ = r'[=!]='
@@ -43,7 +44,7 @@ t_ignore = ' \t\n'
 tokens = ['QUERY', 'COLON', 'DOT', 'COMMA', 'LPAREN', 'RPAREN', 'DSTR', 'SSTR', 'ID', 'LBRAC', 'RBRAC', 'NUM', 'COMP',
           'EQ', 'PLUS', 'QUOTE', 'AT', 'AND', 'OR'] + list(reserved.values())
 
-re_comment = re.compile(r'(^.*),("{0,3}?)[^"]*\2,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*$')
+# Track progress through the file
 succeeded = 0
 failed = 0
 line_num = 0
@@ -104,7 +105,6 @@ def p_value(p):
 def p_term(p):
     '''term : LPAREN term RPAREN
             | complex_term'''
-    #    print("TERM: %s" % to_string(p))
     p[0] = to_string(p)
 
 
@@ -112,7 +112,6 @@ def p_string_term(p):
     '''string_term : string DOT complex_term
                    | string LBRAC NUM RBRAC
                    | string'''
-    #    print("STRING_TERM: %s" % to_string(p))
     p[0] = to_string(p)
 
 
@@ -125,7 +124,6 @@ def p_string(p):
 def p_complex_term(p):
     '''complex_term : simple_term
                     | ternary_term'''
-    #    print("COMPLEX_TERM: %s" % to_string(p))
     p[0] = p[1]
 
 
@@ -134,7 +132,6 @@ def p_simple_term(p):
                    | simple_term PLUS terminal_term
                    | LPAREN simple_term RPAREN
                    | terminal_term'''
-    #    print("SIMPLE_TERM: %s" % to_string(p))
     if len(p) > 3:
         if p[1] == '_' and p[2] == '.':
             p[0] = p[3]
@@ -152,7 +149,6 @@ def p_terminal_term(p):
                      | NUM
                      | string_term
                      | empty'''
-    #    print("TERMINAL_TERM: %s" % to_string(p))
     if len(p) > 2:
         p[0] = p[1] + ' ' + p[2]
     else:
@@ -161,14 +157,12 @@ def p_terminal_term(p):
 
 def p_array(p):
     'array : ID LBRAC NUM RBRAC'
-    #    print("ARRAY: %s" % to_string(p))
     p[0] = to_string(p)
 
 
 def p_func(p):
     '''func : ID LPAREN params RPAREN
             | ID LPAREN RPAREN'''
-    #    print("FUNC: %s" % to_string(p))
     p[0] = to_string(p)
 
 
@@ -182,32 +176,27 @@ def p_ternary_term(p):
     '''ternary_term : ternary
                | LPAREN ternary_term RPAREN
                | ternary_term PLUS term'''
-    #    print("TERNARY: %s" % to_string(p))
     p[0] = to_string(p)
 
 
 def p_simple_ternary(p):
     '''ternary : compound_bool QUERY simple_term COLON simple_term'''
-    #    print("SIMPLE_TERNARY: %s" % to_string(p))
     p[0] = "if " + p[1] + " display " + p[3] + "\notherwise display " + p[5]
 
 
 def p_complex_ternary1(p):
     '''ternary : compound_bool QUERY ternary_term COLON simple_term'''
-    #    print("COMPLEX_TERNARY1: %s" % to_string(p))
     sub = '\t' + '\n\t'.join(p[3].split('\n'))
     p[0] = "if " + p[1] + "\n" + sub + "\notherwise display " + p[5]
 
 
 def p_complex_ternary2(p):
     '''ternary : compound_bool QUERY simple_term COLON ternary_term'''
-    #    print("COMPLEX_TERNARY2: %s" % to_string(p))
     p[0] = "if " + p[1] + " display " + p[3] + "\notherwise " + p[5]
 
 
 def p_compound_bool_parens(p):
     '''compound_bool : LPAREN compound_bool RPAREN'''
-    #    print("CONDITION: %s" % to_string(p))
     p[0] = to_string(p)
 
 
@@ -226,7 +215,6 @@ def p_bool(p):
             | term COMP term
             | term EQ term
             | term'''
-    #    print("BOOL: %s" % to_string(p))
     p[0] = to_string(p)
 
 
@@ -238,21 +226,15 @@ def p_empty(p):
 def parse(data, debug=False):
     global failed, succeeded, line_num
 
-    # If the pre-parser couldn't handle the trailing fields, call it a failure and move on
+    # If the pre-parser couldn't handle the trailing fields, call it a failure and move on.
+    # This is a ugly way to handle the error, but this is the function where we're
+    # tracking the number of failed lines.
     if not data:
         failed += 1
         return
 
     l = lex.lex()
     l.input(data)
-
-    # while True:
-    #     tok = l.token()
-    #
-    #     if not tok:
-    #         break
-    #
-    #     print(tok)
 
     y = yacc.yacc()
     parsed = None
@@ -263,7 +245,6 @@ def parse(data, debug=False):
         parsed = None
 
     if parsed:
-        #        sys.stdout.write(">>> %s\n" % data)
         sys.stdout.write("%d,%s\n" % (line_num, parsed))
         succeeded += 1
     else:
@@ -295,24 +276,32 @@ def translate(file):
 
     for line in file.readlines():
         if first:
+            # Check if the first line is a header
             fields = line.strip().split(',')
             header = True
 
+            # If not every field is present and quoted, it's not a header line
             for field in fields:
-                if field[0] != '"' or field[-1] != '"':
+                if len(field) < 3 or field[0] != '"' or field[-1] != '"':
                     header = False
                     break
 
+            # If it is a header, just skip it
             if header:
                 continue
 
             first = False
 
+        # Because rows can span lines, put the full row together before parsing
         if to_parse:
             to_parse += line.strip()
         else:
             to_parse = line.strip()
 
+        # Really bold assumption here! In our data files, the last column is always
+        # empty. When a row is split across lines, it's in the middle of code.
+        # Therefore, if we see a trailing comma, it means we've found the end of the
+        # line.
         if to_parse.endswith(','):
             line_num += 1
             parse(strip_trailing_fields(to_parse))
@@ -323,36 +312,35 @@ def translate(file):
 
 
 def strip_trailing_fields(line):
-    m = re_comment.match(line)
     out = None
+    count = 0
+    in_quote = False
+    skip = False
+    i = 0
 
-    if m:
-        out = m[1]
-    else:
-        # Try it the hard way
-        count = 0
-        in_quote = False
-        skip = False
-        i = 0
+    # We parse this manually because it's just too hard to do with regex
+    for i in range(len(line) - 1, 0, -1):
+        if skip:
+            skip = False
+        elif in_quote and line[i] == '"' and line[i - 1] == '"':
+            skip = True
+        elif line[i] == '"':
+            in_quote = not in_quote
+        elif not in_quote and line[i] == ',':
+            count += 1
 
-        for i in range(len(line) - 1, 0, -1):
-            if skip:
-                skip = False
-            elif in_quote and line[i] == '"' and line[i - 1] == '"':
-                skip = True
-            elif line[i] == '"':
-                in_quote = not in_quote
-            elif not in_quote and line[i] == ',':
-                count += 1
+            if count == 8:
+                out = line[0:i]
+                break
 
-                if count == 8:
-                    out = line[0:i]
-                    break
-
-        if i <= 0:
-            sys.stderr.write("Could not match fields 6-13: %s\n" % line)
+    if i <= 0:
+        sys.stderr.write("Could not match fields 6-13: %s\n" % line)
 
     return out
+
+
+def usage():
+    sys.stdout.write("python3 parser.py [filename]\n")
 
 
 if __name__ == "__main__":
@@ -360,6 +348,9 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 1:
         translate(sys.stdin)
+    elif len(sys.argv) == 2 and sys.argv[1] == '--help':
+        usage()
+        sys.exit(1)
     elif len(sys.argv) == 2:
         translate(open(sys.argv[1], "r"))
     elif len(sys.argv) == 3 and sys.argv[1] == '-X':
@@ -367,5 +358,8 @@ if __name__ == "__main__":
         parse(data, True)
     else:
         sys.stderr.write("Unexpected arguments: %s\n" % " ".join(sys.argv[1:]))
+        usage()
+        sys.exit(1)
 
     sys.stderr.write("%d failed, %d succeeded\n" % (failed, succeeded))
+    sys.exit(0)
