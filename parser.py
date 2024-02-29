@@ -4,7 +4,8 @@ import ply.lex as lex
 import ply.yacc as yacc
 
 reserved = {
-    'new': 'NEW'
+    'new': 'NEW',
+    'def': 'DEF'
 }
 
 
@@ -124,7 +125,7 @@ def p_string(p):
 
 def p_complex_term(p):
     '''complex_term : simple_term
-                    | ternary'''
+                    | ternary_term'''
     #    print("COMPLEX_TERM: %s" % to_string(p))
     p[0] = p[1]
 
@@ -135,7 +136,10 @@ def p_simple_term(p):
                    | terminal_term'''
     #    print("SIMPLE_TERM: %s" % to_string(p))
     if len(p) > 3:
-        p[0] = p[1] + p[2] + p[3]
+        if p[1] == '_' and p[2] == '.':
+            p[0] = p[3]
+        else:
+            p[0] = p[1] + p[2] + p[3]
     else:
         p[0] = p[1]
 
@@ -174,25 +178,30 @@ def p_params(p):
     p[0] = to_string(p)
 
 
-def p_ternary(p):
-    '''ternary : simple_ternary
-               | complex_ternary1
-               | complex_ternary2'''
+def p_ternary_term(p):
+    '''ternary_term : ternary
+               | LPAREN ternary RPAREN'''
     #    print("TERNARY: %s" % to_string(p))
-    p[0] = p[1]
+    p[0] = to_string(p)
 
 
 def p_simple_ternary(p):
-    '''simple_ternary : condition QUERY simple_term COLON simple_term'''
+    '''ternary : condition QUERY simple_term COLON simple_term'''
     #    print("SIMPLE_TERNARY: %s" % to_string(p))
     p[0] = "if " + p[1] + " display " + p[3] + "\notherwise display " + p[5]
 
 
 def p_complex_ternary1(p):
-    '''complex_ternary1 : condition QUERY term COLON simple_term'''
+    '''ternary : condition QUERY ternary_term COLON simple_term'''
     #    print("COMPLEX_TERNARY1: %s" % to_string(p))
     sub = '\t' + '\n\t'.join(p[3].split('\n'))
     p[0] = "if " + p[1] + "\n" + sub + "\notherwise display " + p[5]
+
+
+def p_complex_ternary2(p):
+    '''ternary : condition QUERY simple_term COLON ternary_term'''
+    #    print("COMPLEX_TERNARY2: %s" % to_string(p))
+    p[0] = "if " + p[1] + " display " + p[3] + "\notherwise " + p[5]
 
 
 def p_condition(p):
@@ -203,8 +212,8 @@ def p_condition(p):
 
 
 def p_compound_bool(p):
-    '''compound_bool : bool AND bool
-                     | bool OR bool
+    '''compound_bool : compound_bool AND bool
+                     | compound_bool OR bool
                      | bool'''
     if len(p) > 3:
         p[0] = "%s %s %s" % (p[1], bool_to_string(p[2]), p[3])
@@ -225,9 +234,8 @@ def p_empty(p):
     p[0] = '<BLANK>'
 
 
-def parse(data):
+def parse(data, debug=False):
     global failed, succeeded, line_num
-    #    data = '''CLAIMIP,ExplanationOfBenefit,default,careTeam[claimLinePerforming@segment:CIP00003].provider.display,"(claimLinePerforming.CIP261 || claimLinePerforming.CIP260) ? ((claimLinePerforming.CIP261 ? getFormattedProviderReferenceById(claimLinePerforming.CIP261, true) : null) ?: getFormattedProviderReferenceById(claimLinePerforming.CIP260, true)): null"'''
 
     # If the pre-parser couldn't handle the trailing fields, call it a failure and move on
     if not data:
@@ -249,7 +257,7 @@ def parse(data):
     parsed = None
 
     try:
-        parsed = y.parse(data, debug=not True)
+        parsed = y.parse(data, debug=debug)
     except:
         parsed = None
 
@@ -260,12 +268,6 @@ def parse(data):
     else:
         sys.stderr.write("!!! %d,%s\n" % (line_num, data))
         failed += 1
-
-
-def p_complex_ternary2(p):
-    '''complex_ternary2 : condition QUERY simple_term COLON term'''
-    #    print("COMPLEX_TERNARY2: %s" % to_string(p))
-    p[0] = "if " + p[1] + " display " + p[3] + "\notherwise " + p[5]
 
 
 def to_string(p):
@@ -359,7 +361,10 @@ if __name__ == "__main__":
         translate(sys.stdin)
     elif len(sys.argv) == 2:
         translate(open(sys.argv[1], "r"))
+    elif len(sys.argv) == 3 and sys.argv[1] == '-X':
+        data = sys.argv[2]
+        parse(data, True)
     else:
-        print("Unexpected arguments")
+        sys.stderr.write("Unexpected arguments: %s\n" % " ".join(sys.argv[1:]))
 
     sys.stderr.write("%d failed, %d succeeded\n" % (failed, succeeded))
