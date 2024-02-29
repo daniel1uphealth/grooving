@@ -9,6 +9,9 @@ import ply.yacc as yacc
 # Usage:
 #   python3 grooving.py [filename]
 #
+# For example:
+#   python3 grooving.py input.csv >output.csv 2>errors.csv
+#
 # If a filename is given, grooving.py will read from that file. If no filename is
 # given, grooving.py will read from stdin. The translations for successfully
 # parsed rows from the source data will be output to stdout. Rows that cannot be
@@ -18,6 +21,11 @@ import ply.yacc as yacc
 #
 # grooving.py requires the PLY library. Before you can use grooving.py, you'll have
 # to pip install ply.
+#
+# grooving.py has some intentional quirks:
+#
+# * If a statement starts with '_.', the '_.' will be dropped in the translation
+#   to simplify the output, e.g. '_.CIP00781' will translate as 'CIP00781'.
 #
 # There are several known cases that grooving.py cannot parse:
 #
