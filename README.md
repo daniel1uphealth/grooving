@@ -1,6 +1,6 @@
 grooving.py is a grammar parser that reads Groovy snippets and produces something that resembles English.
 
-# Usage:
+# Usage
 
    python3 grooving.py [filename]
 
