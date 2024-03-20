@@ -1,3 +1,5 @@
+#! python3
+
 import sys
 import ply.lex as lex
 import ply.yacc as yacc
@@ -33,11 +35,12 @@ import ply.yacc as yacc
 #   is too hard to translate usefully into English.
 # * Regular expressions - really hard to parse, and impossible to translate usefully
 #   into English
-# * Use of '?' in a variable name, e.g. "_.CIP0078?.trim()" - it would be easy to parse,
-#   but I'm not convinced it's valid syntax and don't know how to translate it into
-#   English.
+# * Casts, e.g. x as Integer - can be ignored in the translation and not that hard to
+#   parse.  Guess I should add it.
 # * Use of '|' for boolean comparison - I'm pretty sure that's a syntax error and should
 #   instead be '||'. If we want to support it, it's easy to parse.
+# * Assignments - some rules use assignments to simplify, like 'date = new Date();'.
+#   Translating to English would be too hard.
 #
 
 reserved = {
@@ -61,8 +64,10 @@ t_DSTR = r'""([^,"]||[^"]{2,})""'
 t_SSTR = r'\'[^\']*\''
 t_COMP = r'[<>]=?'
 t_EQ = r'[=!]='
+t_AND = r'&&'
 t_OR = r'\|\|'
 t_NUM = r'\d+'
+t_QDOT = r'\?\.'
 t_QUERY = r'\?'
 t_DOT = r'\.'
 t_LPAREN = r'\('
@@ -70,7 +75,6 @@ t_RPAREN = r'\)'
 t_LBRAC = r'\['
 t_RBRAC = r'\]'
 t_PLUS = r'\+'
-t_AND = r'&&'
 t_QUOTE = r'"'
 t_AT = r'@'
 t_COLON = r':'
@@ -79,7 +83,7 @@ t_COMMA = r','
 t_ignore = ' \t\n'
 
 tokens = ['QUERY', 'COLON', 'DOT', 'COMMA', 'LPAREN', 'RPAREN', 'DSTR', 'SSTR', 'ID', 'LBRAC', 'RBRAC', 'NUM', 'COMP',
-          'EQ', 'PLUS', 'QUOTE', 'AT', 'AND', 'OR'] + list(reserved.values())
+          'EQ', 'PLUS', 'QUOTE', 'AT', 'AND', 'OR', 'QDOT'] + list(reserved.values())
 
 # Track progress through the file
 succeeded = 0
@@ -130,13 +134,14 @@ def p_path_id(p):
     p[0] = to_string(p)
 
 
+def p_quoted_value(p):
+    '''value : QUOTE term QUOTE'''
+    p[0] = '"' + p[2] + '"'
+
+
 def p_value(p):
-    '''value : QUOTE term QUOTE
-             | term'''
-    if len(p) > 2:
-        p[0] = '"' + p[2] + '"'
-    else:
-        p[0] = '"' + p[1] + '"'
+    '''value : term'''
+    p[0] = '"' + p[1] + '"'
 
 
 def p_term(p):
@@ -164,32 +169,39 @@ def p_complex_term(p):
     p[0] = p[1]
 
 
-def p_simple_term(p):
+def p_simple_term_ops(p):
     '''simple_term : simple_term DOT terminal_term
                    | simple_term PLUS terminal_term
-                   | LPAREN simple_term RPAREN
-                   | terminal_term'''
-    if len(p) > 3:
-        if p[1] == '_' and p[2] == '.':
-            p[0] = p[3]
-        else:
-            p[0] = p[1] + p[2] + p[3]
+                   | LPAREN simple_term RPAREN'''
+    if p[1] == '_' and p[2] == '.':
+        p[0] = p[3]
     else:
-        p[0] = p[1]
+        p[0] = p[1] + p[2] + p[3]
+
+
+def p_simple_term_null(p):
+    '''simple_term : simple_term QDOT terminal_term'''
+    p[0] = p[1] + p[2] + p[3]
+
+
+def p_simple_term(p):
+    '''simple_term : terminal_term'''
+    p[0] = p[1]
 
 
 def p_terminal_term(p):
     '''terminal_term : array
                      | func
-                     | NEW func
                      | ID
                      | NUM
                      | string_term
                      | empty'''
-    if len(p) > 2:
-        p[0] = p[1] + ' ' + p[2]
-    else:
-        p[0] = p[1]
+    p[0] = p[1]
+
+
+def p_terminal_term_func(p):
+    '''terminal_term : NEW func'''
+    p[0] = p[1] + ' ' + p[2]
 
 
 def p_array(p):
@@ -239,12 +251,13 @@ def p_compound_bool_parens(p):
 
 def p_compound_bool(p):
     '''compound_bool : compound_bool AND bool
-                     | compound_bool OR bool
-                     | bool'''
-    if len(p) > 3:
-        p[0] = "%s %s %s" % (p[1], bool_to_string(p[2]), p[3])
-    else:
-        p[0] = p[1]
+                     | compound_bool OR bool'''
+    p[0] = "%s %s %s" % (p[1], bool_to_string(p[2]), p[3])
+
+
+def p_compound_bool_bool(p):
+    '''compound_bool : bool'''
+    p[0] = p[1]
 
 
 def p_bool(p):
